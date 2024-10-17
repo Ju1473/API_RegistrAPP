@@ -20,6 +20,9 @@ class Sala(models.Model):
     cod_sala=models.CharField(primary_key=True, max_length=10)
     id_sede=models.ForeignKey(Sede, on_delete=models.CASCADE)
     
+    def __str__(self):
+        return self.cod_sala
+    
 
 class Docente(models.Model):
     id_docente=models.AutoField(primary_key=True)

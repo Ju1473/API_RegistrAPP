@@ -24,7 +24,7 @@ class DocenteSerializer(serializers.ModelSerializer):
 class EstudianteSerializer(serializers.ModelSerializer):
     class Meta:
         model=Estudiante
-        fields = ['p_nombreE','s_nombreE','p_apellidoE','s_apellidoE','correoD','secciones']
+        fields = ['p_nombreE','s_nombreE','p_apellidoE','s_apellidoE','correoE','secciones']
 
 class HorarioSerializer(serializers.ModelSerializer):
     class Meta:

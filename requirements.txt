@@ -37,7 +37,7 @@ PyJWT==2.9.0
 pyparsing==3.2.0
 python-decouple==3.8
 python-firebase==1.2
-python-jwt==2.0.1
+python-jwt==3.3.4
 requests==2.32.3
 requests-toolbelt==0.10.1
 rsa==4.9

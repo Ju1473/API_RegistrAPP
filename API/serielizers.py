@@ -1,43 +1,53 @@
 from .models import *
 from rest_framework import serializers
 
-class AsignaturaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Asignatura
-        fields = '__all__'
+class AsignaturaSerializer(serializers.Serializer):
+    codigo = serializers.CharField()
+    nombre = serializers.CharField()
+    uid = serializers.CharField()
 
-class SedeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Sede
-        fields = ['desc_sede']
+class UsuarioSerializer(serializers.Serializer):
+    email = serializers.CharField(required=False)
+    p_nombre = serializers.CharField()
+    s_nombre = serializers.CharField()
+    p_apellido = serializers.CharField()
+    s_apellido = serializers.CharField()
+    uid = serializers.CharField()
 
-class SalaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Sala
-        fields = '__all__'
+class AsistenciaSerializer(serializers.Serializer):
+    asistidas = serializers.IntegerField()
+    clases = serializers.ListField(child=serializers.IntegerField())
+    faltas = serializers.IntegerField()
+    justificadas = serializers.IntegerField()
+    usuario = UsuarioSerializer(required=False)
+    porcentaje = serializers.FloatField()
+    uid = serializers.CharField()
 
-class DocenteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Docente
-        fields = ['p_nombreD','s_nombreD','p_apellidoD','s_apellidoD','correoD']
+class ClaseSerializer(serializers.Serializer):
+    clases = serializers.ListField(child=serializers.CharField())
+    clasesTotales = serializers.IntegerField()
+    clases_realizadas = serializers.ListField(child=serializers.IntegerField())
+    uid = serializers.CharField()
 
-class EstudianteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Estudiante
-        fields = ['p_nombreE','s_nombreE','p_apellidoE','s_apellidoE','correoE','secciones']
+class HorarioSerializer(serializers.Serializer):
+    dia = serializers.CharField()
+    hora_ini = serializers.CharField()
+    hora_ter = serializers.CharField()
+    sala = serializers.CharField()
+    uid = serializers.CharField()
 
-class HorarioSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Horario
-        fields = ['dia','hora_inicio','hora_termino']
+class SeccionSerializer(serializers.Serializer):
+    asignatura = AsignaturaSerializer()
+    asistencia = AsistenciaSerializer(required=False)
+    asistencias = serializers.ListField(child=AsistenciaSerializer(), required=False)
+    clase = ClaseSerializer()
+    codigo = serializers.CharField()
+    horario = serializers.ListField(child=HorarioSerializer(), required=False)
+    profesor = UsuarioSerializer()
+    porcentaje = serializers.FloatField(required=False)
+    estudiante = UsuarioSerializer(required=False)
+    uid = serializers.CharField()
 
-class ClaseSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Clase
-        fields = ['id_horario','id_sala']
-
-class SeccionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=Seccion
-        fields = '__all__'
-
+class QRSerializer(serializers.Serializer):
+    uid_clase = serializers.CharField()
+    uid_seccion = serializers.CharField()

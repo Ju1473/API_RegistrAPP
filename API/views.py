@@ -11,7 +11,7 @@ from google.cloud.firestore_v1.field_path import FieldPath
 import locale
 from django.utils import timezone
 
-cred = credentials.Certificate('erviceAccountKey.json')
+cred = credentials.Certificate('serviceAccountKey.json')
 app = firebase_admin.initialize_app(cred)
 db = firestore.client()
 

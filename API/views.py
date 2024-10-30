@@ -6,7 +6,7 @@ from .models import *
 from .serielizers import *
 import firebase_admin
 from firebase_admin import firestore, credentials, auth
-from google.cloud.firestore_v1.base_query import FieldFilter
+from google.cloud.firestore_v1.base_query import FieldFilter, BaseCompositeFilter
 from google.cloud.firestore_v1.field_path import FieldPath
 import locale
 from django.utils import timezone
@@ -70,6 +70,85 @@ class SeccionesView(APIView):
 
         serializer = SeccionSerializer(secciones_list, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, id=None):
+        auth_header = request.headers.get('Authorization')
+
+        if not auth_header:
+            return Response({'error': 'Unauthorized request to create secciones'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        token = auth_header.split(' ')[1]
+        decoded_token = verify_token(token)
+        if not decoded_token:
+            return Response({'error': 'Unauthorized request to create secciones'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if decoded_token.get('email').split('@')[1] == 'profesor.duoc.cl':
+            data = request.data
+            if (data['type'] == 1):
+                locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+                local_time = timezone.now()
+
+                clase = db.collection('clases').document(data['id']).get().to_dict()
+                if clase and local_time.strftime('%d-%m-%Y') in clase['clases']:
+                    clase_index = clase['clases'].index(local_time.strftime('%d-%m-%Y'))
+                    new = clase['clases_realizadas']
+                    new[clase_index] = 1
+                    alumnos_ids = [alumno['uid'] for alumno in data['alumnos']]
+                    alumnos = db.collection('usuarios').where(FieldPath.document_id(), 'in', alumnos_ids).get()
+                    for alumno in alumnos:
+                        asistencia = db.collection('asistencias').where(filter=BaseCompositeFilter('AND', filters=[
+                            FieldFilter('uid_seccion', '==', data['seccion']),
+                            FieldFilter('uid_usuario', '==', alumno.id)
+                        ])).get()
+                        asistencia_data = asistencia[0].to_dict()
+                        asistencia_data['clases'][clase_index] = 1
+                        db.collection('asistencias').document(asistencia[0].id).update({'clases': asistencia_data['clases']})
+                    db.collection('clases').document(data['id']).update({'clases_realizadas': new})
+                    return Response({'message': 'Clase iniciada'}, status=status.HTTP_201_CREATED)
+                return Response({'error': 'No se encontró ninguna clase actual'}, status=status.HTTP_404_NOT_FOUND)
+            elif (data['type'] == 2):
+                locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+                local_time = timezone.now()
+
+                clase = db.collection('clases').document(data['id']).get().to_dict()
+                if clase and local_time.strftime('%d-%m-%Y') in clase['clases']:
+                    clase_index = clase['clases'].index(local_time.strftime('%d-%m-%Y'))
+                    for ausente in data['ausentes']:
+                        asistencia = db.collection('asistencias').where(filter=BaseCompositeFilter('AND', filters=[
+                            FieldFilter('uid_seccion', '==', data['seccion']),
+                            FieldFilter('uid_usuario', '==', ausente)
+                        ])).get()
+                        asistencia_data = asistencia[0].to_dict()
+                        asistencia_data['clases'][clase_index] = 1
+                        db.collection('asistencias').document(asistencia[0].id).update({'clases': asistencia_data['clases']})
+                    for presente in data['presentes']:
+                        asistencia = db.collection('asistencias').where(filter=BaseCompositeFilter('AND', filters=[
+                            FieldFilter('uid_seccion', '==', data['seccion']),
+                            FieldFilter('uid_usuario', '==', presente)
+                        ])).get()
+                        asistencia_data = asistencia[0].to_dict()
+                        asistencia_data['clases'][clase_index] = 2
+                        db.collection('asistencias').document(asistencia[0].id).update({'clases': asistencia_data['clases']})
+                    return Response({'message': 'Asistencia actualizada'}, status=status.HTTP_201_CREATED)
+                return Response({'error': 'No se encontró ninguna clase actual'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        elif decoded_token.get('email').split('@')[1] == 'duocuc.cl':
+            data = request.data
+            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+            local_time = timezone.now()
+            clase = db.collection('clases').document(data['id']).get().to_dict()
+            if clase and local_time.strftime('%d-%m-%Y') in clase['clases']:
+                clase_index = clase['clases'].index(local_time.strftime('%d-%m-%Y'))
+                asistencia = db.collection('asistencias').where(filter=BaseCompositeFilter('AND', filters=[
+                    FieldFilter('uid_seccion', '==', data['seccion']),
+                    FieldFilter('uid_usuario', '==', decoded_token.get('user_id'))
+                ])).get()
+                print(asistencia[0].id)
+                asistencia_data = asistencia[0].to_dict()
+                asistencia_data['clases'][clase_index] = 2
+                db.collection('asistencias').document(asistencia[0].id).update({'clases': asistencia_data['clases']})
+                return Response({'message': 'Asistencia actualizada'}, status=status.HTTP_201_CREATED)
+        return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
     def options(self, request, id=None):
         options_data = {
@@ -106,8 +185,9 @@ class QRView(APIView):
         for seccion in secciones:
             clase = next((clase for clase in clases if clase.id == seccion.get('uid_clase')), None)
             if clase and local_time.strftime('%d-%m-%Y') in [clase for clase in clase.get('clases')]:
-                for horario in horarios:
-                    if local_time.strftime('%A').capitalize() == horario.get('dia') and local_time.strftime('%H:%M') >= horario.get('hora_ini') and local_time.strftime('%H:%M') < horario.get('hora_ter'):
+                for h in set(clase.get('horarios')):
+                    horario_data = next((horario for horario in horarios if horario.id == h), None)
+                    if local_time.strftime('%A').capitalize() == horario_data.get('dia') and local_time.strftime('%H:%M') >= horario_data.get('hora_ini') and local_time.strftime('%H:%M') < horario_data.get('hora_ter'):
                         serializer = QRSerializer([{ 'uid_clase': clase.id, 'uid_seccion': seccion.id }], many=True)
                         return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({'error': 'No se encontró ninguna clase actual'}, status=status.HTTP_404_NOT_FOUND)
@@ -148,6 +228,7 @@ def getS(seccion, asistencias, asignaturas, clases, usuarios, horarios, salas, d
             if asistencia.get('uid_seccion') == seccion.id:
                 usuario_data = next((usuario for usuario in usuarios if usuario.id == asistencia.get('uid_usuario')), None)
                 asistencias_list.append({'asistidas': asistencia.get('clases').count(2), 'clases': asistencia.get('clases'), 'faltas': asistencia.get('clases').count(1), 'justificadas': asistencia.get('clases').count(3), 'porcentaje': asistencia.get('clases').count(2) / clase.get('clases_realizadas').count(1), 'usuario': {**usuario_data.to_dict(), 'uid': usuario_data.id}, 'uid': asistencia.id})
+        asistencias_list.sort(key=lambda x: (x['usuario'].get('p_apellido', ''), x['usuario'].get('p_nombre', '')))
         data = {**data, 'asistencias': asistencias_list}
     if asignatura:
         data = {**data, 'asignatura': {'nombre': asignatura.get('nombre'), 'codigo': asignatura.get('codigo'), 'uid': asignatura.id}}
